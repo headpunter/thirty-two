@@ -1,0 +1,481 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thirty-Two Challenge</title>
+<meta name="description" content="Paste your Commander decks, see your colour-identity coverage across all 32 slots. Runs entirely in your browser.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='none' stroke='%23e0b64f' stroke-width='3'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sorts+Mill+Goudy:ital@0;1&family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  /* Single committed theme: an ink-and-foil print sheet. Every colour explicit. */
+  :root {
+    --ground: #14121a;
+    --surface: #1c1923;
+    --border: #2e2a3a;
+    --border-subtle: #241f2e;
+    --foil: #e0b64f;
+    --foil-dim: rgba(224, 182, 79, 0.14);
+    --amber: #d89a5a;
+    --fg-1: #ece7db;
+    --fg-2: #a9a29b;
+    --fg-3: #6f6879;
+    --serif: "Sorts Mill Goudy", Georgia, "Times New Roman", serif;
+    --sans: "Alegreya Sans", "Segoe UI", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--fg-1);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  .sheet { max-width: 1140px; margin: 0 auto; padding: 40px 28px 64px; }
+
+  /* ---------- header ---------- */
+  header { margin-bottom: 26px; }
+  .kicker {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--foil);
+    margin: 0 0 10px;
+  }
+  h1 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 42px;
+    line-height: 1.05;
+    margin: 0 0 6px;
+    text-wrap: balance;
+  }
+  .tagline { margin: 0; color: var(--fg-2); font-size: 15px; max-width: 62ch; }
+
+  /* ---------- input ---------- */
+  .input-panel {
+    margin: 24px 0 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    padding: 14px;
+  }
+  .input-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+  .input-head label {
+    font-family: var(--sans);
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--fg-2);
+  }
+  .input-head .hint { font-size: 12px; color: var(--fg-3); }
+  .input-head button { margin-left: auto; }
+  textarea {
+    width: 100%;
+    min-height: 170px;
+    resize: vertical;
+    background: var(--ground);
+    color: var(--fg-1);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  textarea:focus-visible, button:focus-visible {
+    outline: 2px solid var(--foil);
+    outline-offset: 1px;
+  }
+  textarea::placeholder { color: var(--fg-3); }
+  button {
+    font-family: var(--sans);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--fg-2);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 4px 10px;
+    cursor: pointer;
+  }
+  button:hover { color: var(--fg-1); border-color: var(--fg-3); }
+  .hidden { display: none; }
+
+  /* ---------- problems ---------- */
+  .problems { margin: 14px 0 0; display: flex; flex-direction: column; gap: 8px; }
+  .problem {
+    border: 1px solid var(--amber);
+    border-radius: 6px;
+    padding: 9px 12px;
+    font-size: 13px;
+    color: var(--fg-2);
+    background: rgba(216, 154, 90, 0.07);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .problem .raw { font-family: var(--mono); font-size: 12px; color: var(--fg-1); }
+  .problem .pick { border-color: var(--amber); color: var(--amber); }
+  .problem .pick:hover { color: var(--fg-1); }
+
+  /* ---------- stats ---------- */
+  .statline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 28px;
+    align-items: baseline;
+    border-top: 1px solid var(--border-subtle);
+    border-bottom: 1px solid var(--border-subtle);
+    padding: 12px 2px;
+    margin: 24px 0 30px;
+  }
+  .stat { display: flex; align-items: baseline; gap: 8px; }
+  .stat b {
+    font-family: var(--mono);
+    font-weight: 500;
+    font-size: 20px;
+    font-variant-numeric: tabular-nums;
+    color: var(--fg-1);
+  }
+  .stat span { font-size: 13px; color: var(--fg-2); }
+  .tier-key {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--fg-3);
+  }
+
+  /* ---------- groups & cells ---------- */
+  main { display: flex; flex-direction: column; gap: 30px; }
+  .group-head { display: flex; align-items: baseline; gap: 12px; margin: 0 0 10px; }
+  .group-head h2 {
+    font-family: var(--sans);
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--fg-2);
+    margin: 0;
+  }
+  .group-head .count {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--foil);
+    font-variant-numeric: tabular-nums;
+  }
+  .group-head .rule { flex: 1; height: 1px; background: var(--border-subtle); }
+  .group-head .note { font-size: 12px; color: var(--fg-3); font-style: italic; }
+  .cells { display: flex; flex-wrap: wrap; gap: 10px; }
+  .cell {
+    width: 172px;
+    min-height: 100px;
+    border-radius: 6px;
+    padding: 10px 11px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .cell.wide { width: 354px; }
+  .cell.filled {
+    border: 1px solid var(--foil);
+    background: linear-gradient(160deg, var(--foil-dim), rgba(224,182,79,0.03) 55%), var(--surface);
+    box-shadow: 0 0 0 1px rgba(224, 182, 79, 0.22), 0 10px 26px -18px rgba(224, 182, 79, 0.5);
+  }
+  .cell.empty { border: 1px dashed var(--border); background: transparent; }
+  .cell-top { display: flex; align-items: center; gap: 5px; }
+  .pips { display: flex; gap: 3px; }
+  .pip {
+    width: 11px; height: 11px;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.35);
+  }
+  .pip.W { background: #e9e2c0; }
+  .pip.U { background: #4e9fd8; }
+  .pip.B { background: #85789c; }
+  .pip.R { background: #d65a45; }
+  .pip.G { background: #57a46b; }
+  .pip.C { background: transparent; box-shadow: inset 0 0 0 1.5px var(--fg-3); }
+  .identity-label {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--fg-3);
+  }
+  .cell.filled .identity-label { color: var(--fg-2); }
+  .decks { display: flex; flex-direction: column; gap: 7px; }
+  .deck { display: grid; grid-template-columns: auto 1fr; column-gap: 7px; align-items: baseline; }
+  .deck.untier { grid-template-columns: 1fr; }
+  .tier {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 15px;
+    min-width: 20px;
+    text-align: center;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    color: var(--fg-2);
+    background: rgba(0,0,0,0.25);
+    font-variant-numeric: tabular-nums;
+  }
+  .tier.t5 { border-color: var(--foil); color: var(--foil); }
+  .commander {
+    font-family: var(--serif);
+    font-size: 14.5px;
+    line-height: 1.15;
+    color: var(--fg-1);
+  }
+  .deckname {
+    grid-column: 2;
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 12px;
+    line-height: 1.25;
+    color: var(--fg-2);
+    margin-top: 1px;
+  }
+  .deck.untier .deckname { grid-column: 1; }
+  .warn { grid-column: 2; font-size: 11px; color: var(--amber); }
+  .deck.untier .warn { grid-column: 1; }
+  .vacant {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 12.5px;
+    color: var(--fg-3);
+    margin-top: auto;
+  }
+
+  footer {
+    margin-top: 40px;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px 16px;
+    font-size: 12px;
+    color: var(--fg-3);
+  }
+  footer a { color: var(--fg-2); }
+  footer .mono { font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <header>
+    <p class="kicker">Commander &middot; colour-identity coverage</p>
+    <h1>The Thirty-Two Challenge</h1>
+    <p class="tagline">One deck for every colour identity. Paste your decks — one per
+      line, loose names welcome — and see which of the 32 slots you hold.
+      Everything runs in your browser; nothing is uploaded anywhere.
+      The page URL always encodes your current list, so copy it to share your board.</p>
+  </header>
+
+  <section class="input-panel" id="input-panel">
+    <div class="input-head">
+      <label for="list">Your decks</label>
+      <span class="hint">"Zada Mafia Queen" &middot; pairs: "Reyhan / Ishai" &middot;
+        pin a name: "Alela, Cunning Conqueror | On the Clock" &middot;
+        a bare "5" or "3^" rates the lines after it</span>
+      <button type="button" id="toggle-input">Hide list</button>
+    </div>
+    <textarea id="list" spellcheck="false" placeholder="5
+Esika  Legends
+Zada  Mafia Queen
+
+4
+Reyhan / Ishai  Iterative Sequence Computer
+Arcades  Zugzwang"></textarea>
+  </section>
+
+  <div class="problems" id="problems"></div>
+  <div class="statline" id="stats"></div>
+  <main id="grid"></main>
+
+  <footer>
+    <span>Commander catalog: <span id="data-meta"></span> &middot;
+      <a href="https://github.com/headpunter/thirty-two">source</a></span>
+    <span class="mono">thirty-two &middot; runs entirely in your browser</span>
+  </footer>
+</div>
+
+<script src="commanders.js"></script>
+<script src="grid.js"></script>
+<script>
+(function () {
+  "use strict";
+  var index = T32.buildIndex(window.T32_DATA.commanders);
+  var $list = document.getElementById("list");
+  var $problems = document.getElementById("problems");
+  var $stats = document.getElementById("stats");
+  var $grid = document.getElementById("grid");
+  var $toggle = document.getElementById("toggle-input");
+  var $panel = document.getElementById("input-panel");
+
+  document.getElementById("data-meta").textContent =
+    window.T32_DATA.commanders.length + " commanders, " +
+    window.T32_DATA.generated;
+
+  function el(tag, className, text) {
+    var e = document.createElement(tag);
+    if (className) e.className = className;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  function pips(identity) {
+    var wrap = el("span", "pips");
+    var colors = identity ? identity.split("") : ["C"];
+    colors.forEach(function (c) { wrap.appendChild(el("span", "pip " + c)); });
+    return wrap;
+  }
+
+  function renderDeck(d) {
+    var row = el("div", "deck" + (d.tier ? "" : " untier"));
+    if (d.tier) {
+      row.appendChild(el("span",
+        "tier" + (T32.tierRank(d.tier) >= 5 ? " t5" : ""),
+        T32.tierLabel(d.tier)));
+    }
+    row.appendChild(el("span", "commander", d.names.join(" + ")));
+    if (d.deckName) row.appendChild(el("span", "deckname", d.deckName));
+    d.warnings.forEach(function (w) { row.appendChild(el("span", "warn", w)); });
+    return row;
+  }
+
+  function renderGrid(slots, anyTiers) {
+    $grid.textContent = "";
+    var byIdentity = {};
+    slots.forEach(function (s) { byIdentity[s.identity] = s; });
+
+    T32.GROUPS.forEach(function (group) {
+      var section = el("section");
+      var head = el("div", "group-head");
+      var filled = group.identities.filter(function (i) {
+        return byIdentity[i.code].filled;
+      }).length;
+      head.appendChild(el("h2", "", group.label));
+      head.appendChild(el("span", "count",
+        filled + "/" + group.identities.length));
+      head.appendChild(el("span", "rule"));
+      head.appendChild(el("span", "note", group.note));
+      section.appendChild(head);
+
+      var cells = el("div", "cells");
+      group.identities.forEach(function (i) {
+        var slot = byIdentity[i.code];
+        var cell = el("div", "cell " + (slot.filled ? "filled" : "empty") +
+          (slot.decks.length > 2 ? " wide" : ""));
+        var top = el("div", "cell-top");
+        top.appendChild(pips(i.code));
+        top.appendChild(el("span", "identity-label", i.name));
+        cell.appendChild(top);
+        if (slot.filled) {
+          var decks = el("div", "decks");
+          slot.decks.forEach(function (d) { decks.appendChild(renderDeck(d)); });
+          cell.appendChild(decks);
+        } else {
+          cell.appendChild(el("span", "vacant", "no deck yet"));
+        }
+        cells.appendChild(cell);
+      });
+      section.appendChild(cells);
+      $grid.appendChild(section);
+    });
+  }
+
+  function renderStats(decks, slots) {
+    $stats.textContent = "";
+    var covered = slots.filter(function (s) { return s.filled; }).length;
+    var doubled = slots.filter(function (s) { return s.decks.length > 1; }).length;
+    function stat(value, label) {
+      var s = el("div", "stat");
+      s.appendChild(el("b", "", value));
+      s.appendChild(el("span", "", label));
+      $stats.appendChild(s);
+    }
+    stat(covered + " / 32", "identities covered");
+    stat(String(decks.length), "decks");
+    if (doubled) stat(String(doubled), "doubled-up slots");
+    if (decks.some(function (d) { return d.tier; })) {
+      var key = el("div", "tier-key");
+      key.appendChild(el("span", "tier", "5"));
+      key.appendChild(el("span", "", "→"));
+      key.appendChild(el("span", "tier", "2"));
+      key.appendChild(el("span", "",
+        "your ratings; ^ and v split a number into high and low"));
+      $stats.appendChild(key);
+    }
+  }
+
+  // Ambiguity fix-ups rewrite the source line so the choice lives in the
+  // list (and therefore in the shared URL), not in hidden state.
+  function renderProblems(problems) {
+    $problems.textContent = "";
+    problems.forEach(function (p) {
+      var box = el("div", "problem");
+      if (p.kind === "unresolved") {
+        box.appendChild(el("span", "", "No commander found in:"));
+        box.appendChild(el("span", "raw", p.raw.trim()));
+      } else {
+        box.appendChild(el("span", "", "“" + p.query + "” could be:"));
+        p.candidates.forEach(function (c) {
+          var b = el("button", "pick", c.name + " (" + (c.identity || "C") + ")");
+          b.type = "button";
+          b.addEventListener("click", function () {
+            var lines = $list.value.split(/\r?\n/);
+            lines[p.lineIndex] = c.name + (p.rest ? " | " + p.rest : "");
+            $list.value = lines.join("\n");
+            update();
+          });
+          box.appendChild(b);
+        });
+      }
+      $problems.appendChild(box);
+    });
+  }
+
+  function update() {
+    var text = $list.value;
+    var parsed = T32.parseList(index, text);
+    var slots = T32.buildSlots(parsed.decks);
+    renderProblems(parsed.problems);
+    renderStats(parsed.decks, slots);
+    renderGrid(slots);
+    try { localStorage.setItem("thirty-two:list", text); } catch (e) {}
+    var hash = text.trim() ? "#" + encodeURIComponent(text) : "";
+    history.replaceState(null, "", location.pathname + location.search + hash);
+  }
+
+  var timer = null;
+  $list.addEventListener("input", function () {
+    clearTimeout(timer);
+    timer = setTimeout(update, 250);
+  });
+
+  $toggle.addEventListener("click", function () {
+    var hidden = $list.classList.toggle("hidden");
+    $toggle.textContent = hidden ? "Show list" : "Hide list";
+  });
+
+  var initial = "";
+  if (location.hash.length > 1) {
+    try { initial = decodeURIComponent(location.hash.slice(1)); } catch (e) {}
+  }
+  if (!initial) {
+    try { initial = localStorage.getItem("thirty-two:list") || ""; } catch (e) {}
+  }
+  $list.value = initial;
+  update();
+})();
+</script>
+</body>
+</html>
