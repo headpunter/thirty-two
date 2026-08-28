@@ -35,8 +35,20 @@ def main() -> None:
             "from commander_entries where not is_pair")).fetchall()
         pair_rows = conn.execute(sa.text(
             "select oracle_ids from commander_entries where is_pair")).fetchall()
+        # The pair catalog only holds EDHREC-known partner/background pairs;
+        # the keyword text covers every pairing mechanic (Partner, Partner
+        # with, Friends forever, Choose a Background, Doctor's companion —
+        # and the Doctors themselves, who carry no keyword, only a type).
+        keyword_rows = conn.execute(sa.text(
+            "select oracle_id from cards "
+            "where oracle_text ~* '\\mpartner\\M' "
+            "   or oracle_text ilike '%friends forever%' "
+            "   or oracle_text ilike '%choose a background%' "
+            "   or oracle_text ilike '%doctor''s companion%' "
+            "   or type_line ilike '%time lord doctor%'")).fetchall()
 
     pairable = {oid for (oids,) in pair_rows for oid in oids}
+    pairable |= {oid for (oid,) in keyword_rows}
     # Double-faced names carry the back face ("Terra, Magical Adept // Esper
     # Terra"). The front face is the entry's name — unique on its own across
     # the whole catalog — and the back face rides along as a fourth element,
