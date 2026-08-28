@@ -14,12 +14,12 @@ sharing your board is copying the address bar.
 
 ```
 5
-Esika  Legends
-Zada  Mafia Queen
+Atraxa  Superfriends
+Krenko  Goblin Bomb
 
 4
-Reyhan / Ishai  Iterative Sequence Computer
-Alela, Cunning Conqueror | On the Clock
+Thrasios / Tymna  Value Town
+Alela, Cunning Conqueror | Faerie Flash
 ```
 
 - One deck per line: a commander name (loose prefixes fine), and whatever
