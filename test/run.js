@@ -57,6 +57,26 @@ test("ambiguous names with one shared identity resolve as typed", () => {
   assert.equal(r.match.identity, "URG");
 });
 
+// ---------- aliases & completion ----------
+test("back-face alias resolves to the front-face entry", () => {
+  const r = T32.matchName(index, "Esper Terra");
+  assert.equal(r.match.name, "Terra, Magical Adept");
+  assert.equal(r.match.identity, "WUBRG");
+});
+test("completePrefix: unique partial-word prefix completes", () => {
+  assert.equal(T32.completePrefix(index, "zurz"), "Zurzoth, Chaos Rider");
+  assert.equal(T32.completePrefix(index, "esika g"), "Esika, God of the Tree");
+});
+test("completePrefix: back-face alias completes as typed side", () => {
+  assert.equal(T32.completePrefix(index, "esper"), "Esper Terra");
+});
+test("completePrefix: ambiguous or unknown gives nothing", () => {
+  assert.equal(T32.completePrefix(index, "esika"), null);  // God vs Chariot
+  assert.equal(T32.completePrefix(index, "alela"), null);
+  assert.equal(T32.completePrefix(index, "zzzz"), null);
+  assert.equal(T32.completePrefix(index, "  "), null);
+});
+
 // ---------- tier markers ----------
 test("tier markers parse and rank", () => {
   assert.equal(T32.parseTierMarker("5"), "5");

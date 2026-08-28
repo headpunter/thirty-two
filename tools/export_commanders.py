@@ -37,12 +37,18 @@ def main() -> None:
             "select oracle_ids from commander_entries where is_pair")).fetchall()
 
     pairable = {oid for (oids,) in pair_rows for oid in oids}
-    # Double-faced names carry the back face ("Esika, God of the Tree // The
-    # Prismatic Bridge"); people paste the front face, which is unique on its
-    # own across the whole catalog.
-    commanders = sorted(
-        [name.split(" // ")[0], identity, 1 if oids[0] in pairable else 0]
-        for name, identity, oids in solos)
+    # Double-faced names carry the back face ("Terra, Magical Adept // Esper
+    # Terra"). The front face is the entry's name — unique on its own across
+    # the whole catalog — and the back face rides along as a fourth element,
+    # a match/complete alias for people who know the card by that side.
+    commanders = []
+    for name, identity, oids in solos:
+        faces = name.split(" // ")
+        row = [faces[0], identity, 1 if oids[0] in pairable else 0]
+        if len(faces) > 1:
+            row.append(faces[1])
+        commanders.append(row)
+    commanders.sort()
 
     payload = {
         "generated": datetime.date.today().isoformat(),

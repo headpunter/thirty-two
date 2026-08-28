@@ -283,7 +283,8 @@
     <div class="input-head">
       <label for="list">Your decks</label>
       <span class="hint">one deck per line, deck name after the commander &middot;
-        pairs: "Thrasios / Tymna" &middot; pin a name: "Commander | Deck Name" &middot;
+        Tab completes a name &middot; pairs: "Thrasios / Tymna" &middot;
+        pin a name: "Commander | Deck Name" &middot;
         a bare "5" or "3^" rates the lines after it</span>
       <button type="button" id="toggle-input">Hide list</button>
     </div>
@@ -459,6 +460,31 @@ Sisay  Legends Toolbox"></textarea>
   $list.addEventListener("input", function () {
     clearTimeout(timer);
     timer = setTimeout(update, 250);
+  });
+
+  // Tab completes the name being typed when exactly one commander matches.
+  // Only then is Tab swallowed — otherwise it keeps moving focus.
+  $list.addEventListener("keydown", function (ev) {
+    if (ev.key !== "Tab" || ev.shiftKey) return;
+    if ($list.selectionStart !== $list.selectionEnd) return;
+    var pos = $list.selectionStart;
+    var value = $list.value;
+    var lineStart = value.lastIndexOf("\n", pos - 1) + 1;
+    var seg = value.slice(lineStart, pos);
+    // Complete only the segment after the last pair/name separator, so the
+    // second half of "Thrasios / tym" completes too.
+    var cut = Math.max(seg.lastIndexOf("|"), seg.lastIndexOf("/"),
+                       seg.lastIndexOf("+"), seg.lastIndexOf("&"));
+    var segStart = lineStart + (cut === -1 ? 0 : cut + 1);
+    while (segStart < pos && /\s/.test(value[segStart])) segStart++;
+    var typed = value.slice(segStart, pos);
+    var full = T32.completePrefix(index, typed);
+    if (!full || full === typed) return;
+    ev.preventDefault();
+    $list.value = value.slice(0, segStart) + full + value.slice(pos);
+    var after = segStart + full.length;
+    $list.setSelectionRange(after, after);
+    update();
   });
 
   $toggle.addEventListener("click", function () {

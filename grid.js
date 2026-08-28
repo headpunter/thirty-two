@@ -66,15 +66,26 @@
       .trim();
   }
 
-  // commanders: [[name, identity, pairable], ...] from commanders.json.
+  // commanders: [[name, identity, pairable, backFaceName?], ...] from
+  // commanders.json. A back-face name ("Esper Terra") is an alias: it
+  // matches and completes, but always resolves to the front-face entry.
   function buildIndex(commanders) {
-    var list = commanders.map(function (row) {
-      return { name: row[0], identity: row[1], pairable: !!row[2],
-               norm: normalize(row[0]) };
+    var list = [];
+    var aliases = [];
+    commanders.forEach(function (row) {
+      var entry = { name: row[0], identity: row[1], pairable: !!row[2],
+                    norm: normalize(row[0]) };
+      list.push(entry);
+      if (row[3]) {
+        aliases.push({ name: row[3], norm: normalize(row[3]), entry: entry });
+      }
     });
     var byNorm = {};
     list.forEach(function (c) { byNorm[c.norm] = c; });
-    return { list: list, byNorm: byNorm };
+    aliases.forEach(function (a) {
+      if (!byNorm[a.norm]) byNorm[a.norm] = a.entry;
+    });
+    return { list: list, aliases: aliases, byNorm: byNorm };
   }
 
   // Resolve a query to a commander. Exact normalized match wins; otherwise a
@@ -108,7 +119,36 @@
       }
       return { ambiguous: hits };
     }
+    // Back-face aliases are a fallback so they can never shadow a real
+    // front-face name.
+    var aliasHits = index.aliases.filter(function (a) {
+      return a.norm.indexOf(nq + " ") === 0;
+    });
+    var entries = {};
+    aliasHits.forEach(function (a) { entries[a.entry.name] = a.entry; });
+    var names = Object.keys(entries);
+    if (names.length === 1) return { match: entries[names[0]] };
+    if (names.length > 1) {
+      return { ambiguous: names.map(function (n) { return entries[n]; }) };
+    }
     return null;
+  }
+
+  // Shell-style completion for the UI: the full name when exactly one
+  // commander (or back-face alias) starts with the typed text — partial
+  // words allowed, so "esper" completes where matchName would not resolve.
+  function completePrefix(index, typed) {
+    var nq = normalize(typed);
+    if (!nq) return null;
+    var names = {};
+    index.list.forEach(function (c) {
+      if (c.norm.indexOf(nq) === 0) names[c.name] = true;
+    });
+    index.aliases.forEach(function (a) {
+      if (a.norm.indexOf(nq) === 0) names[a.name] = true;
+    });
+    var hits = Object.keys(names);
+    return hits.length === 1 ? hits[0] : null;
   }
 
   // Longest-prefix resolution of a free-form line: try the whole line as a
@@ -282,6 +322,7 @@
     buildIndex: buildIndex,
     matchName: matchName,
     matchLine: matchLine,
+    completePrefix: completePrefix,
     parseTierMarker: parseTierMarker,
     tierRank: tierRank,
     tierLabel: tierLabel,
