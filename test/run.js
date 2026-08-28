@@ -11,9 +11,21 @@ const data = JSON.parse(
 const index = T32.buildIndex(data.commanders);
 
 let n = 0;
+const pending = [];
 function test(name, fn) {
   n++;
-  try { fn(); } catch (e) {
+  try {
+    const r = fn();
+    if (r && typeof r.then === "function") {
+      pending.push(r.then(
+        () => console.log(`ok ${name}`),
+        (e) => {
+          console.error(`FAIL ${name}\n  ${e.message}`);
+          process.exitCode = 1;
+        }));
+      return;
+    }
+  } catch (e) {
     console.error(`FAIL ${name}\n  ${e.message}`);
     process.exitCode = 1;
     return;
@@ -200,6 +212,24 @@ test("buildSlots covers 9 identities for the paste, best tier first", () => {
   const red = slots.find((s) => s.identity === "R");
   assert.equal(red.decks.length, 3);
   assert.equal(red.decks[0].deckName, "Mafia Queen");
+});
+
+// ---------- share codec ----------
+test("share codec round-trips and stays compact", async () => {
+  const enc = await T32.encodeShare(PASTE);
+  assert.ok(enc.startsWith("z="), "expected compressed form");
+  assert.ok(!/%20|\s/.test(enc), "no percent-noise or whitespace");
+  assert.ok(enc.length < encodeURIComponent(PASTE).length,
+    `not shorter: ${enc.length} vs ${encodeURIComponent(PASTE).length}`);
+  assert.equal(await T32.decodeShare(enc), PASTE);
+});
+test("legacy percent-encoded hashes still decode", async () => {
+  assert.equal(await T32.decodeShare(encodeURIComponent("Zada Mafia Queen")),
+    "Zada Mafia Queen");
+});
+test("garbage z= hash decodes to empty, not a crash", async () => {
+  assert.equal(await T32.decodeShare("z=!!!not-base64!!!"), "");
+  assert.equal(await T32.decodeShare("z=AAAA"), "");
 });
 
 process.on("exit", () => {

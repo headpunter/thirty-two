@@ -314,6 +314,66 @@
     });
   }
 
+  // ---- share-URL codec ----------------------------------------------------
+  // The list rides in the URL hash. Deflate + base64url ("z=" prefix) keeps
+  // links short and free of %20 noise; plain percent-encoded hashes (the
+  // original format, and the fallback where CompressionStream is missing)
+  // still decode, so old links keep working.
+
+  function toBase64Url(bytes) {
+    var bin = "";
+    for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+
+  function fromBase64Url(s) {
+    var bin = atob(s.replace(/-/g, "+").replace(/_/g, "/"));
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  }
+
+  function pipeThrough(bytes, stream) {
+    var writer = stream.writable.getWriter();
+    // Failures surface on the read side; unhandled writer rejections would
+    // crash node before the reader's catch ever ran.
+    function ignore() {}
+    writer.write(bytes).catch(ignore);
+    writer.close().catch(ignore);
+    return new Response(stream.readable).arrayBuffer().then(function (buf) {
+      return new Uint8Array(buf);
+    });
+  }
+
+  // -> Promise<string>: the hash payload (without the leading "#").
+  function encodeShare(text) {
+    if (typeof CompressionStream === "undefined") {
+      return Promise.resolve(encodeURIComponent(text));
+    }
+    var bytes = new TextEncoder().encode(text);
+    return pipeThrough(bytes, new CompressionStream("deflate"))
+      .then(function (out) { return "z=" + toBase64Url(out); });
+  }
+
+  // -> Promise<string>: the list text, from either hash format.
+  function decodeShare(hash) {
+    if (hash.indexOf("z=") !== 0) {
+      try { return Promise.resolve(decodeURIComponent(hash)); }
+      catch (e) { return Promise.resolve(""); }
+    }
+    if (typeof DecompressionStream === "undefined") {
+      return Promise.resolve("");
+    }
+    try {
+      var bytes = fromBase64Url(hash.slice(2));
+      return pipeThrough(bytes, new DecompressionStream("deflate"))
+        .then(function (out) { return new TextDecoder().decode(out); })
+        .catch(function () { return ""; });
+    } catch (e) {
+      return Promise.resolve("");
+    }
+  }
+
   var T32 = {
     GROUPS: GROUPS,
     ALL_IDENTITIES: ALL_IDENTITIES,
@@ -329,6 +389,8 @@
     parseList: parseList,
     buildSlots: buildSlots,
     stripDeckName: stripDeckName,
+    encodeShare: encodeShare,
+    decodeShare: decodeShare,
   };
 
   if (typeof module !== "undefined" && module.exports) module.exports = T32;

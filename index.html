@@ -452,8 +452,17 @@ Sisay  Legends Toolbox"></textarea>
     renderStats(parsed.decks, slots);
     renderGrid(slots);
     try { localStorage.setItem("thirty-two:list", text); } catch (e) {}
-    var hash = text.trim() ? "#" + encodeURIComponent(text) : "";
-    history.replaceState(null, "", location.pathname + location.search + hash);
+    if (!text.trim()) {
+      history.replaceState(null, "", location.pathname + location.search);
+      return;
+    }
+    T32.encodeShare(text).then(function (payload) {
+      // Guard against out-of-order async writes while typing.
+      if ($list.value === text) {
+        history.replaceState(null, "",
+          location.pathname + location.search + "#" + payload);
+      }
+    });
   }
 
   var timer = null;
@@ -492,15 +501,16 @@ Sisay  Legends Toolbox"></textarea>
     $toggle.textContent = hidden ? "Show list" : "Hide list";
   });
 
-  var initial = "";
-  if (location.hash.length > 1) {
-    try { initial = decodeURIComponent(location.hash.slice(1)); } catch (e) {}
-  }
-  if (!initial) {
-    try { initial = localStorage.getItem("thirty-two:list") || ""; } catch (e) {}
-  }
-  $list.value = initial;
-  update();
+  var boot = location.hash.length > 1
+    ? T32.decodeShare(location.hash.slice(1))
+    : Promise.resolve("");
+  boot.then(function (initial) {
+    if (!initial) {
+      try { initial = localStorage.getItem("thirty-two:list") || ""; } catch (e) {}
+    }
+    $list.value = initial;
+    update();
+  });
 })();
 </script>
 </body>
