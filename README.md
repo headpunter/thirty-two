@@ -31,6 +31,10 @@ Alela, Cunning Conqueror | Faerie Flash
   high-3 and low-3). Ratings show as chips; skip them entirely if you like.
 - Names that match several commanders show a click-to-pick prompt — only
   when the candidates actually differ in colour identity.
+- `[G]` anywhere on a line overrides the deck's colour identity outright —
+  `Zada, Hedron Grinder [G] Forest Queen` sits in the mono-green slot. Any
+  mix of `WUBRG` in any order; `[C]` or `[]` for colourless. Brackets holding
+  anything else (`[my pet deck]`) are left alone as part of the deck name.
 - `{Box Name}` anywhere on a line files that deck into a box. Braces are
   lifted out before name matching, so they can sit wherever reads best.
 

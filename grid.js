@@ -212,6 +212,22 @@
     return { line: stripped.replace(/\s+/g, " ").trim(), category: found };
   }
 
+  // [WUBRG] anywhere on a line overrides the deck's colour identity outright:
+  // "Zada, Hedron Grinder [G] Forest Queen" files a mono-red commander in the
+  // mono-green slot. Lifted before name matching like {Category}, and only
+  // when the brackets hold nothing but colour letters — "[my pet deck]" stays
+  // in the line so bracketed deck names survive. [C] and [] mean colourless.
+  function extractIdentity(line) {
+    var found = null;
+    var stripped = String(line).replace(/\[([^\[\]]*)\]/g, function (whole, inner) {
+      var body = inner.trim();
+      if (found !== null || !/^[wubrgc]*$/i.test(body)) return whole;
+      found = canonicalIdentity(body.toUpperCase().replace(/C/g, ""));
+      return " ";
+    });
+    return { line: stripped.replace(/\s+/g, " ").trim(), identity: found };
+  }
+
   // Parse one deck line into {commanders: [entry,...], deckName, warnings} or
   // {unresolved} / {ambiguous}. Explicit "|" separates commander part from
   // deck name; "/", " + ", " & " separate an explicit pair; an implicit pair
@@ -285,15 +301,17 @@
     var tier = "";
     String(text).split(/\r?\n/).forEach(function (raw, i) {
       var lifted = extractCategory(raw);
-      var line = lifted.line;
+      var forced = extractIdentity(lifted.line);
+      var line = forced.line;
       if (!line) return;
       var marker = parseTierMarker(line);
       if (marker !== null) { tier = marker; return; }
       var r = parseDeckLine(index, line);
       if (r.commanders) {
-        var identity = canonicalIdentity(r.commanders.map(function (c) {
-          return c.identity;
-        }).join(""));
+        var identity = forced.identity !== null ? forced.identity
+          : canonicalIdentity(r.commanders.map(function (c) {
+              return c.identity;
+            }).join(""));
         decks.push({
           names: r.commanders.map(function (c) { return c.name; }),
           identity: identity,
@@ -306,11 +324,11 @@
       } else if (r.ambiguous) {
         problems.push({ kind: "ambiguous", raw: raw, lineIndex: i,
                         query: r.query, candidates: r.ambiguous,
-                        category: lifted.category,
+                        category: lifted.category, override: forced.identity,
                         rest: stripDeckName(r.rest || "") });
       } else {
         problems.push({ kind: "unresolved", raw: raw, lineIndex: i,
-                        category: lifted.category });
+                        category: lifted.category, override: forced.identity });
       }
     });
     return { decks: decks, problems: problems };
@@ -435,6 +453,7 @@
     buildSlots: buildSlots,
     buildBoxes: buildBoxes,
     extractCategory: extractCategory,
+    extractIdentity: extractIdentity,
     stripDeckName: stripDeckName,
     encodeShare: encodeShare,
     decodeShare: decodeShare,

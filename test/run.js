@@ -296,6 +296,80 @@ test("no decks yields no boxes", () => {
   assert.deepEqual(T32.buildBoxes([]), []);
 });
 
+// ---------- colour-identity overrides ----------
+test("extractIdentity lifts a bracketed colour code from anywhere", () => {
+  assert.deepEqual(T32.extractIdentity("Zada Forest Queen [G]"),
+    { line: "Zada Forest Queen", identity: "G" });
+  assert.deepEqual(T32.extractIdentity("Zada [G] Forest Queen"),
+    { line: "Zada Forest Queen", identity: "G" });
+  assert.deepEqual(T32.extractIdentity("Zada Mafia Queen"),
+    { line: "Zada Mafia Queen", identity: null });
+});
+test("extractIdentity canonicalises case and order", () => {
+  assert.equal(T32.extractIdentity("Krenko [gu]").identity, "UG");
+  assert.equal(T32.extractIdentity("Krenko [RwG]").identity, "WRG");
+  assert.equal(T32.extractIdentity("Krenko [GG]").identity, "G");
+});
+test("[C] and [] mean colourless", () => {
+  assert.equal(T32.extractIdentity("Krenko [C]").identity, "");
+  assert.equal(T32.extractIdentity("Krenko []").identity, "");
+});
+test("brackets that are not colour letters stay in the line", () => {
+  assert.deepEqual(T32.extractIdentity("Zada [my pet deck]"),
+    { line: "Zada [my pet deck]", identity: null });
+  assert.deepEqual(T32.extractIdentity("Zada [2024]"),
+    { line: "Zada [2024]", identity: null });
+});
+test("only the first colour override on a line counts", () => {
+  assert.deepEqual(T32.extractIdentity("Zada [G] Queen [U]"),
+    { line: "Zada Queen [U]", identity: "G" });
+});
+
+test("an override replaces the deck's identity outright", () => {
+  const r = T32.parseList(index, "Zada, Hedron Grinder [G] Forest Queen");
+  assert.equal(r.problems.length, 0, JSON.stringify(r.problems));
+  assert.equal(r.decks[0].names[0], "Zada, Hedron Grinder");
+  assert.equal(r.decks[0].identity, "G");
+  assert.equal(r.decks[0].deckName, "Forest Queen");
+});
+test("an override applies to a pair too", () => {
+  const r = T32.parseList(index, "Thrasios / Tymna [R] Value Town");
+  assert.equal(r.problems.length, 0, JSON.stringify(r.problems));
+  assert.equal(r.decks[0].names.length, 2);
+  assert.equal(r.decks[0].identity, "R");
+  assert.equal(r.decks[0].deckName, "Value Town");
+});
+test("an override coexists with a category, tier and explicit | name", () => {
+  const r = T32.parseList(index,
+    "5\nZada, Hedron Grinder [G] | Forest Queen {Red Box}");
+  assert.equal(r.problems.length, 0, JSON.stringify(r.problems));
+  const d = r.decks[0];
+  assert.equal(d.identity, "G");
+  assert.equal(d.deckName, "Forest Queen");
+  assert.equal(d.category, "Red Box");
+  assert.equal(d.tier, "5");
+});
+test("an override lands the deck in the overridden slot", () => {
+  const r = T32.parseList(index, "Zada, Hedron Grinder [G] Forest Queen");
+  const slots = T32.buildSlots(r.decks);
+  const green = slots.find((s) => s.identity === "G");
+  assert.equal(green.filled, true);
+  assert.equal(slots.find((s) => s.identity === "R").filled, false);
+});
+test("[C] files a coloured commander in the colourless slot", () => {
+  const r = T32.parseList(index, "Krenko, Mob Boss [C]");
+  assert.equal(r.decks[0].identity, "");
+  assert.equal(T32.buildSlots(r.decks).find((s) => s.identity === "").filled,
+    true);
+});
+test("an override on an ambiguous line survives on the problem", () => {
+  const r = T32.parseList(index, "Alela On the Clock [G]");
+  assert.equal(r.problems[0].kind, "ambiguous");
+  assert.equal(r.problems[0].override, "G");
+  const plain = T32.parseList(index, "Alela On the Clock");
+  assert.equal(plain.problems[0].override, null);
+});
+
 // ---------- share codec ----------
 test("share codec round-trips and stays compact", async () => {
   const enc = await T32.encodeShare(PASTE);

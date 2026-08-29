@@ -373,7 +373,8 @@
         Tab completes a name &middot; pairs: "Thrasios / Tymna" &middot;
         pin a name: "Commander | Deck Name" &middot;
         a bare "5" or "3^" rates the lines after it &middot;
-        "{Box Name}" files a deck into a box</span>
+        "{Box Name}" files a deck into a box &middot;
+        "[G]" overrides a deck's colour identity</span>
       <button type="button" id="toggle-input">Hide list</button>
     </div>
     <textarea id="list" spellcheck="false" placeholder="5
@@ -582,7 +583,8 @@ Sisay  Legends Toolbox"></textarea>
           b.addEventListener("click", function () {
             var lines = $list.value.split(/\r?\n/);
             lines[p.lineIndex] = c.name + (p.rest ? " | " + p.rest : "") +
-              (p.category ? " {" + p.category + "}" : "");
+              (p.category ? " {" + p.category + "}" : "") +
+              (p.override !== null ? " [" + (p.override || "C") + "]" : "");
             $list.value = lines.join("\n");
             update();
           });
