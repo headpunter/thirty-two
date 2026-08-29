@@ -14,11 +14,11 @@ sharing your board is copying the address bar.
 
 ```
 5
-Atraxa  Superfriends
-Krenko  Goblin Bomb
+Atraxa  Superfriends {Sunday Night}
+Krenko  Goblin Bomb {Sunday Night}
 
 4
-Thrasios / Tymna  Value Town
+Thrasios / Tymna  Value Town {Cube Shelf}
 Alela, Cunning Conqueror | Faerie Flash
 ```
 
@@ -31,6 +31,19 @@ Alela, Cunning Conqueror | Faerie Flash
   high-3 and low-3). Ratings show as chips; skip them entirely if you like.
 - Names that match several commanders show a click-to-pick prompt — only
   when the candidates actually differ in colour identity.
+- `{Box Name}` anywhere on a line files that deck into a box. Braces are
+  lifted out before name matching, so they can sit wherever reads best.
+
+## Views
+
+**Colour grid** is the default: all 32 identity slots, filled and vacant.
+
+**Boxes** re-sorts the same decks into one panel per `{Box Name}` — your own
+shelf, sleeve, or playgroup ordering rather than the colour wheel. Boxes appear
+in the order you first name them, decks inside sort by rating, and anything
+unlabelled collects in a trailing box. Each deck carries its colour pips, since
+position no longer encodes identity. A shared link containing braces opens in
+this view.
 
 ## Development
 

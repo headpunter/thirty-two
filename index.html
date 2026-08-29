@@ -255,6 +255,93 @@
     margin-top: auto;
   }
 
+  /* ---------- view toggle ---------- */
+  .viewbar { display: flex; margin: 0 0 20px; }
+  .viewswitch { display: flex; gap: 0; margin-left: auto; }
+  .viewswitch button {
+    border-radius: 0;
+    margin-left: -1px;
+  }
+  .viewswitch button:first-child { border-radius: 5px 0 0 5px; margin-left: 0; }
+  .viewswitch button:last-child { border-radius: 0 5px 5px 0; }
+  .viewswitch button[aria-pressed="true"] {
+    color: var(--ground);
+    background: var(--foil);
+    border-color: var(--foil);
+    font-weight: 700;
+    position: relative;
+  }
+  .viewswitch button[aria-pressed="true"]:hover { color: var(--ground); }
+
+  /* ---------- boxes ---------- */
+  .boxes { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
+  .box {
+    width: 354px;
+    border-radius: 6px;
+    padding: 12px 13px 13px;
+    border: 1px solid var(--foil);
+    background: linear-gradient(160deg, var(--foil-dim), rgba(224,182,79,0.03) 55%), var(--surface);
+    box-shadow: 0 0 0 1px rgba(224, 182, 79, 0.22), 0 10px 26px -18px rgba(224, 182, 79, 0.5);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .box.unlabelled {
+    border: 1px dashed var(--border);
+    background: transparent;
+    box-shadow: none;
+  }
+  .box-top {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: 8px;
+  }
+  .box-top h3 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 19px;
+    line-height: 1.1;
+    margin: 0;
+    color: var(--fg-1);
+  }
+  .box.unlabelled .box-top h3 { font-style: italic; color: var(--fg-2); }
+  .box-top .tally {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--foil);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .box.unlabelled .box-top .tally { color: var(--fg-3); }
+  .box .decks { gap: 9px; }
+  .box-deck { display: grid; grid-template-columns: auto auto 1fr; column-gap: 8px; align-items: baseline; }
+  .box-deck .pips { position: relative; top: 1px; }
+  .box-deck .commander { grid-column: 3; }
+  .box-deck .deckname { grid-column: 3; }
+  .box-deck .warn { grid-column: 3; }
+  .box-deck.untier { grid-template-columns: auto 1fr; }
+  .box-deck.untier .commander,
+  .box-deck.untier .deckname,
+  .box-deck.untier .warn { grid-column: 2; }
+
+  .empty-note {
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    padding: 16px 18px;
+    color: var(--fg-2);
+    font-size: 13.5px;
+    line-height: 1.6;
+    max-width: 62ch;
+  }
+  .empty-note code {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--foil);
+  }
+
   footer {
     margin-top: 40px;
     display: flex;
@@ -285,7 +372,8 @@
       <span class="hint">one deck per line, deck name after the commander &middot;
         Tab completes a name &middot; pairs: "Thrasios / Tymna" &middot;
         pin a name: "Commander | Deck Name" &middot;
-        a bare "5" or "3^" rates the lines after it</span>
+        a bare "5" or "3^" rates the lines after it &middot;
+        "{Box Name}" files a deck into a box</span>
       <button type="button" id="toggle-input">Hide list</button>
     </div>
     <textarea id="list" spellcheck="false" placeholder="5
@@ -299,6 +387,12 @@ Sisay  Legends Toolbox"></textarea>
 
   <div class="problems" id="problems"></div>
   <div class="statline" id="stats"></div>
+  <div class="viewbar">
+    <div class="viewswitch" role="group" aria-label="View">
+      <button type="button" id="view-grid" aria-pressed="true">Colour grid</button>
+      <button type="button" id="view-boxes" aria-pressed="false">Boxes</button>
+    </div>
+  </div>
   <main id="grid"></main>
 
   <footer>
@@ -320,6 +414,9 @@ Sisay  Legends Toolbox"></textarea>
   var $grid = document.getElementById("grid");
   var $toggle = document.getElementById("toggle-input");
   var $panel = document.getElementById("input-panel");
+  var $viewGrid = document.getElementById("view-grid");
+  var $viewBoxes = document.getElementById("view-boxes");
+  var view = "grid";
 
   document.getElementById("data-meta").textContent =
     window.T32_DATA.commanders.length + " commanders, " +
@@ -393,6 +490,57 @@ Sisay  Legends Toolbox"></textarea>
     });
   }
 
+  // Boxes view: one panel per {category}, the user's own shelf order. Each
+  // deck carries its identity pips here — the colour information the grid
+  // conveys by position has to travel with the row instead.
+  function renderBoxes(boxes) {
+    $grid.textContent = "";
+    if (!boxes.length) {
+      var note = el("div", "empty-note");
+      note.appendChild(document.createTextNode(
+        "Add a box name in braces to any deck line and it lands here. "));
+      var eg = el("code", "", "Atraxa  Superfriends {Sunday Night}");
+      note.appendChild(eg);
+      note.appendChild(document.createTextNode(
+        " — every deck sharing a box name shelves together, and boxes appear " +
+        "in the order you first name them. Decks you leave unlabelled collect " +
+        "in a box of their own at the end."));
+      $grid.appendChild(note);
+      return;
+    }
+    var wrap = el("div", "boxes");
+    boxes.forEach(function (box) {
+      var panel = el("div", "box" + (box.label ? "" : " unlabelled"));
+      var top = el("div", "box-top");
+      top.appendChild(el("h3", "", box.label || "Unfiled"));
+      top.appendChild(el("span", "tally",
+        box.decks.length + (box.decks.length === 1 ? " deck" : " decks") +
+        " \u00b7 " + box.identities +
+        (box.identities === 1 ? " identity" : " identities")));
+      panel.appendChild(top);
+
+      var decks = el("div", "decks");
+      box.decks.forEach(function (d) {
+        var row = el("div", "box-deck" + (d.tier ? "" : " untier"));
+        row.appendChild(pips(d.identity));
+        if (d.tier) {
+          row.appendChild(el("span",
+            "tier" + (T32.tierRank(d.tier) >= 5 ? " t5" : ""),
+            T32.tierLabel(d.tier)));
+        }
+        row.appendChild(el("span", "commander", d.names.join(" + ")));
+        if (d.deckName) row.appendChild(el("span", "deckname", d.deckName));
+        d.warnings.forEach(function (w) {
+          row.appendChild(el("span", "warn", w));
+        });
+        decks.appendChild(row);
+      });
+      panel.appendChild(decks);
+      wrap.appendChild(panel);
+    });
+    $grid.appendChild(wrap);
+  }
+
   function renderStats(decks, slots) {
     $stats.textContent = "";
     var covered = slots.filter(function (s) { return s.filled; }).length;
@@ -433,7 +581,8 @@ Sisay  Legends Toolbox"></textarea>
           b.type = "button";
           b.addEventListener("click", function () {
             var lines = $list.value.split(/\r?\n/);
-            lines[p.lineIndex] = c.name + (p.rest ? " | " + p.rest : "");
+            lines[p.lineIndex] = c.name + (p.rest ? " | " + p.rest : "") +
+              (p.category ? " {" + p.category + "}" : "");
             $list.value = lines.join("\n");
             update();
           });
@@ -450,7 +599,8 @@ Sisay  Legends Toolbox"></textarea>
     var slots = T32.buildSlots(parsed.decks);
     renderProblems(parsed.problems);
     renderStats(parsed.decks, slots);
-    renderGrid(slots);
+    if (view === "boxes") renderBoxes(T32.buildBoxes(parsed.decks));
+    else renderGrid(slots);
     try { localStorage.setItem("thirty-two:list", text); } catch (e) {}
     if (!text.trim()) {
       history.replaceState(null, "", location.pathname + location.search);
@@ -496,6 +646,16 @@ Sisay  Legends Toolbox"></textarea>
     update();
   });
 
+  function setView(next) {
+    view = next;
+    $viewGrid.setAttribute("aria-pressed", String(next === "grid"));
+    $viewBoxes.setAttribute("aria-pressed", String(next === "boxes"));
+    try { localStorage.setItem("thirty-two:view", next); } catch (e) {}
+    update();
+  }
+  $viewGrid.addEventListener("click", function () { setView("grid"); });
+  $viewBoxes.addEventListener("click", function () { setView("boxes"); });
+
   $toggle.addEventListener("click", function () {
     var hidden = $list.classList.toggle("hidden");
     $toggle.textContent = hidden ? "Show list" : "Hide list";
@@ -509,7 +669,12 @@ Sisay  Legends Toolbox"></textarea>
       try { initial = localStorage.getItem("thirty-two:list") || ""; } catch (e) {}
     }
     $list.value = initial;
-    update();
+    var saved = null;
+    try { saved = localStorage.getItem("thirty-two:view"); } catch (e) {}
+    // A shared link carrying categories opens on the view that shows them,
+    // unless this browser has already expressed a preference.
+    if (!saved && /\{[^{}]*\}/.test(initial)) saved = "boxes";
+    setView(saved === "boxes" ? "boxes" : "grid");
   });
 })();
 </script>

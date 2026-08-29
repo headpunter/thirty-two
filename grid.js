@@ -199,6 +199,19 @@
     return rest.replace(/^[\s/|.—-]+/, "").trim();
   }
 
+  // {Category} anywhere on a line names the box the deck belongs in. It is
+  // lifted out before any name matching so braces can sit wherever the user
+  // finds them readable — "Atraxa {Casual} Superfriends" and
+  // "Atraxa Superfriends {Casual}" are the same deck in the same box.
+  function extractCategory(line) {
+    var found = "";
+    var stripped = String(line).replace(/\{([^{}]*)\}/g, function (_, inner) {
+      if (!found) found = inner.trim();
+      return " ";
+    });
+    return { line: stripped.replace(/\s+/g, " ").trim(), category: found };
+  }
+
   // Parse one deck line into {commanders: [entry,...], deckName, warnings} or
   // {unresolved} / {ambiguous}. Explicit "|" separates commander part from
   // deck name; "/", " + ", " & " separate an explicit pair; an implicit pair
@@ -271,7 +284,8 @@
     var problems = [];
     var tier = "";
     String(text).split(/\r?\n/).forEach(function (raw, i) {
-      var line = raw.trim();
+      var lifted = extractCategory(raw);
+      var line = lifted.line;
       if (!line) return;
       var marker = parseTierMarker(line);
       if (marker !== null) { tier = marker; return; }
@@ -285,15 +299,18 @@
           identity: identity,
           deckName: r.deckName,
           tier: tier,
+          category: lifted.category,
           warnings: r.warnings,
           lineIndex: i,
         });
       } else if (r.ambiguous) {
         problems.push({ kind: "ambiguous", raw: raw, lineIndex: i,
                         query: r.query, candidates: r.ambiguous,
+                        category: lifted.category,
                         rest: stripDeckName(r.rest || "") });
       } else {
-        problems.push({ kind: "unresolved", raw: raw, lineIndex: i });
+        problems.push({ kind: "unresolved", raw: raw, lineIndex: i,
+                        category: lifted.category });
       }
     });
     return { decks: decks, problems: problems };
@@ -311,6 +328,34 @@
         return tierRank(b.tier) - tierRank(a.tier);
       });
       return { identity: id, decks: entries, filled: entries.length > 0 };
+    });
+  }
+
+  // Box assembly: one box per {category}, in the order the categories first
+  // appear in the list — the user's own ordering is the only sensible one, and
+  // it survives editing. Decks with no category collect in a trailing box so
+  // a half-labelled list still shows everything.
+  function buildBoxes(decks) {
+    var order = [];
+    var byLabel = {};
+    decks.forEach(function (d) {
+      var label = d.category || "";
+      if (!byLabel[label]) { byLabel[label] = []; order.push(label); }
+      byLabel[label].push(d);
+    });
+    order.sort(function (a, b) {
+      // Uncategorised last; everything else keeps first-appearance order.
+      if ((a === "") !== (b === "")) return a === "" ? 1 : -1;
+      return 0;
+    });
+    return order.map(function (label) {
+      var entries = byLabel[label].slice().sort(function (a, b) {
+        return tierRank(b.tier) - tierRank(a.tier);
+      });
+      var seen = {};
+      entries.forEach(function (d) { seen[d.identity] = true; });
+      return { label: label, decks: entries,
+               identities: Object.keys(seen).length };
     });
   }
 
@@ -388,6 +433,8 @@
     tierLabel: tierLabel,
     parseList: parseList,
     buildSlots: buildSlots,
+    buildBoxes: buildBoxes,
+    extractCategory: extractCategory,
     stripDeckName: stripDeckName,
     encodeShare: encodeShare,
     decodeShare: decodeShare,

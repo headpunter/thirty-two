@@ -214,6 +214,88 @@ test("buildSlots covers 9 identities for the paste, best tier first", () => {
   assert.equal(red.decks[0].deckName, "Mafia Queen");
 });
 
+// ---------- categories & boxes ----------
+test("extractCategory lifts braces from anywhere on the line", () => {
+  assert.deepEqual(T32.extractCategory("Atraxa Superfriends {Sunday Night}"),
+    { line: "Atraxa Superfriends", category: "Sunday Night" });
+  assert.deepEqual(T32.extractCategory("Atraxa {Sunday Night} Superfriends"),
+    { line: "Atraxa Superfriends", category: "Sunday Night" });
+  assert.deepEqual(T32.extractCategory("Krenko Goblin Bomb"),
+    { line: "Krenko Goblin Bomb", category: "" });
+  assert.deepEqual(T32.extractCategory("Krenko {}"),
+    { line: "Krenko", category: "" });
+});
+
+const BOXED = `5
+Esika Legends {Green Box}
+Zada Mafia Queen {Red Box}
+
+4
+Krenko Goblin Bomb {Red Box}
+Arcades Zugzwang
+Alela, Cunning Conqueror | On the Clock {Green Box}`;
+
+const boxedParse = T32.parseList(index, BOXED);
+
+test("categories parse off deck lines without disturbing names", () => {
+  assert.equal(boxedParse.problems.length, 0,
+    JSON.stringify(boxedParse.problems));
+  assert.equal(boxedParse.decks.length, 5);
+  const esika = boxedParse.decks[0];
+  assert.equal(esika.names[0], "Esika, God of the Tree");
+  assert.equal(esika.deckName, "Legends");
+  assert.equal(esika.category, "Green Box");
+  assert.equal(esika.tier, "5");
+});
+test("a category coexists with an explicit | deck name", () => {
+  const d = boxedParse.decks.find((d) => d.names[0] === "Alela, Cunning Conqueror");
+  assert.equal(d.deckName, "On the Clock");
+  assert.equal(d.category, "Green Box");
+});
+test("buildBoxes groups by category in first-appearance order", () => {
+  const boxes = T32.buildBoxes(boxedParse.decks);
+  assert.deepEqual(boxes.map((b) => b.label), ["Green Box", "Red Box", ""]);
+  assert.deepEqual(boxes[0].decks.map((d) => d.deckName),
+    ["Legends", "On the Clock"]);
+  assert.deepEqual(boxes[1].decks.map((d) => d.deckName),
+    ["Mafia Queen", "Goblin Bomb"]);
+});
+test("uncategorised decks collect in a trailing unlabelled box", () => {
+  const boxes = T32.buildBoxes(boxedParse.decks);
+  const last = boxes[boxes.length - 1];
+  assert.equal(last.label, "");
+  assert.equal(last.decks.length, 1);
+  assert.equal(last.decks[0].names[0], "Arcades");
+});
+test("boxes sort decks best tier first and count distinct identities", () => {
+  const boxes = T32.buildBoxes(boxedParse.decks);
+  const red = boxes.find((b) => b.label === "Red Box");
+  assert.equal(red.decks[0].tier, "5");        // Zada 5 before Krenko 4
+  assert.equal(red.identities, 1);             // both mono-red
+  const green = boxes.find((b) => b.label === "Green Box");
+  assert.equal(green.identities, 2);           // WUBRG + UB
+});
+test("a category on an ambiguous line survives on the problem", () => {
+  const r = T32.parseList(index, "Alela On the Clock {Green Box}");
+  assert.equal(r.problems[0].kind, "ambiguous");
+  assert.equal(r.problems[0].category, "Green Box");
+});
+test("a bare tier marker still works with a category on the line", () => {
+  const r = T32.parseList(index, "5 {ignored}\nZada Mafia Queen {Red Box}");
+  assert.equal(r.decks.length, 1);
+  assert.equal(r.decks[0].tier, "5");
+  assert.equal(r.decks[0].category, "Red Box");
+});
+test("an uncategorised list yields a single unlabelled box", () => {
+  const boxes = T32.buildBoxes(parsed.decks);
+  assert.equal(boxes.length, 1);
+  assert.equal(boxes[0].label, "");
+  assert.equal(boxes[0].decks.length, 14);
+});
+test("no decks yields no boxes", () => {
+  assert.deepEqual(T32.buildBoxes([]), []);
+});
+
 // ---------- share codec ----------
 test("share codec round-trips and stays compact", async () => {
   const enc = await T32.encodeShare(PASTE);
